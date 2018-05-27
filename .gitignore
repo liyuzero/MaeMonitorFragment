@@ -28,7 +28,6 @@ proguard/
 # Log Files
 *.log
 *.iml
-jdme_android.iml
 app.iml
 gradle/*
 welfareplugin/*

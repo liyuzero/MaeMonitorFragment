@@ -1,0 +1,15 @@
+ext {
+    VERSION_CODE = 1
+    VERSION_NAME = "1.0"
+    COMPILE_SDK_VERSION = 26
+    MIN_SDK_VERSION = 14
+    TARGET_SDK_VERSION = 23
+    SUPPORT_VERSION = "27.1.1"
+    // support依赖支持包
+    compile_support = [
+            design      : "com.android.support:design:${SUPPORT_VERSION}",
+            annotations : "com.android.support:support-annotations:${SUPPORT_VERSION}",
+            appcompat   : "com.android.support:appcompat-v7:${SUPPORT_VERSION}",
+            recyclerview: "com.android.support:recyclerview-v7:${SUPPORT_VERSION}",
+    ]
+}
