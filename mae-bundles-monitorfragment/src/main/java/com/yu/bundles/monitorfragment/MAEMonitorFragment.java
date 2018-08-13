@@ -28,7 +28,7 @@ import java.util.List;
  */
 
 public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest{
-    private static final String MONITOR_FRAGMENT_TAG = "MONITOR_FRAGMENT_TAG";
+    private static final String MONITOR_FRAGMENT_TAG = "YU_MONITOR_FRAGMENT_TAG";
     private MAELifecycleListener lifecycleListener;
     private MAEActivityResultListener resultListener;
 
