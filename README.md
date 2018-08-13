@@ -15,7 +15,7 @@ allprojects {
 2. 使用module依赖，新增依赖：
 
 ```java
-    compile 'com.github.liyuzero:maeMonitorFragment:1.0.0'
+    compile 'com.github.liyuzero:maeMonitorFragment:1.0.1'
 ```
 
 ### 具体调用（详情见demo）
