@@ -1,3 +1,3 @@
 <resources>
-    <string name="app_name">mae-bundles-monitorfragment</string>
+    <string name="mae_bundles_monitor_install_apk_tips">安装应用需要打开未知来源权限，请去设置中开启权限</string>
 </resources>

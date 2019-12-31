@@ -1,8 +1,8 @@
 package com.yu.bundles.monitorfragment;
 
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * Created by liyu on 2017/11/28.

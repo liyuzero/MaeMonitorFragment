@@ -2,23 +2,27 @@ package com.yu.bundles.monitorfragment;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.Fragment;
-import android.app.FragmentManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.AppOpsManagerCompat;
-import android.support.v4.app.FragmentActivity;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.app.AppOpsManagerCompat;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AlertDialog;
+import androidx.fragment.app.FragmentManager;
+
 import android.text.TextUtils;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -31,51 +35,40 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
     private static final String MONITOR_FRAGMENT_TAG = "YU_MONITOR_FRAGMENT_TAG";
     private MAELifecycleListener lifecycleListener;
     private MAEActivityResultListener resultListener;
+    private MaeMonitorDialogUtils mMonitorDialogUtils;
+    private MaeInstallApkUtils mInstallApkUtils;
+    private static int mTargetSDKVersion = 0;
 
     public static MAEPermissionRequest getInstance(Fragment fragment){
-        if(fragment != null && fragment.isAdded()){
+        if(fragment != null && fragment.isAdded() && fragment.getActivity() != null){
             return getInstance(fragment.getActivity());
         } else {
-            return null;
+            return new MAEMonitorFragment();
         }
     }
 
-    public static MAEPermissionRequest getInstance(android.support.v4.app.Fragment fragment){
-        if(fragment != null && fragment.isAdded()){
-            return getInstance(fragment.getActivity());
-        } else {
-            return null;
-        }
-    }
-
-    public static MAEPermissionRequest getInstance(Activity activity){
+    public static MAEPermissionRequest getInstance(FragmentActivity activity){
         if(activity != null && !activity.isFinishing()){
-            FragmentManager manager = activity.getFragmentManager();
+            initTargetSDKVersion(activity.getApplicationInfo());
+            FragmentManager manager = activity.getSupportFragmentManager();
             MAEMonitorFragment fragment = (MAEMonitorFragment) manager.findFragmentByTag(MONITOR_FRAGMENT_TAG);
             if(fragment == null){
                 fragment = new MAEMonitorFragment();
-                activity.getFragmentManager().beginTransaction()
+                activity.getSupportFragmentManager().beginTransaction()
                         .add(fragment, MONITOR_FRAGMENT_TAG)
                         .commitAllowingStateLoss();
                 manager.executePendingTransactions();
             }
             return fragment;
         } else {
-            return null;
+            return new MAEMonitorFragment();
         }
     }
 
-    private static MAEPermissionRequest getInstance(FragmentActivity activity){
-        FragmentManager manager = activity.getFragmentManager();
-        MAEMonitorFragment fragment = (MAEMonitorFragment) manager.findFragmentByTag(MONITOR_FRAGMENT_TAG);
-        if(fragment == null){
-            fragment = new MAEMonitorFragment();
-            activity.getFragmentManager().beginTransaction()
-                    .add(fragment, MONITOR_FRAGMENT_TAG)
-                    .commitAllowingStateLoss();
-            manager.executePendingTransactions();
+    private static void initTargetSDKVersion(ApplicationInfo applicationInfo) {
+        if (mTargetSDKVersion == 0 && applicationInfo != null) {
+            mTargetSDKVersion = applicationInfo.targetSdkVersion;
         }
-        return fragment;
     }
 
     @Override
@@ -89,6 +82,11 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
     @Override
     public void onStart() {
         super.onStart();
+        if (mMonitorDialogUtils != null && mMonitorDialogUtils.isShowing() && getActivity() != null) {
+            if (mPreForbiddenPermissions == null || hasPermission(getActivity(), mPreForbiddenPermissions)) {
+                mMonitorDialogUtils.dismissDialog();
+            }
+        }
         if(lifecycleListener != null){
             lifecycleListener.onStart();
         }
@@ -148,6 +146,57 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
         requestPermission(permissions, maePermissionCallback, null);
     }
 
+    @Override
+    public void requestPermissionWithFailDialog(String[] permissions, String failInfo, DialogInterface.OnClickListener onFailClickListener, MAEPermissionCallback callBack) {
+        requestPermissionWithFailDialog(permissions, failInfo, onFailClickListener, callBack, null);
+    }
+
+    private String[] mPreForbiddenPermissions;
+
+    @Override
+    public void requestPermissionWithFailDialog(String[] permissions, final String failInfo, final DialogInterface.OnClickListener onFailClickListener,
+                                                final MAEPermissionCallback callBack, String explain) {
+        requestPermission(permissions, new MAEPermissionCallback() {
+            @Override
+            public void onPermissionApplySuccess() {
+                if (callBack != null) {
+                    callBack.onPermissionApplySuccess();
+                }
+            }
+
+            @Override
+            public void onPermissionApplyFailure(List<String> notGrantedPermissions, List<Boolean> shouldShowRequestPermissions) {
+                boolean isNotAskAgain = false;
+                for (Boolean b : shouldShowRequestPermissions) {
+                    isNotAskAgain |= !b;
+                }
+                if (isNotAskAgain || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mTargetSDKVersion < Build.VERSION_CODES.O)) {
+                    //点击设置，添加权限返回界面后，使得dialog消失时使用
+                    mPreForbiddenPermissions = notGrantedPermissions.toArray(new String[0]);
+                    if(mMonitorDialogUtils == null) {
+                        mMonitorDialogUtils = new MaeMonitorDialogUtils(getActivity());
+                    }
+                    mMonitorDialogUtils.createPermissionDialog(getActivity(), failInfo, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            //点击了取消按钮，dialog默认已经消失
+                            mPreForbiddenPermissions = null;
+                            if (onFailClickListener != null) {
+                                onFailClickListener.onClick(dialog, which);
+                            } else {
+                                dialog.dismiss();
+                            }
+                        }
+                    });
+                    return;
+                }
+                if (callBack != null) {
+                    callBack.onPermissionApplyFailure(notGrantedPermissions, shouldShowRequestPermissions);
+                }
+            }
+        }, explain);
+    }
+
     /*
     * 权限申请
     * 外部调用
@@ -157,24 +206,50 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
     * */
     @Override
     public void requestPermission(String[] permissions, final MAEPermissionCallback maePermissionCallback, String explain){
-        if(permissions == null || maePermissionCallback == null){
+        if(permissions == null || maePermissionCallback == null || getContext() == null){
             return ;
         }
         final List<String> permissionsList = getPermissionsList(getActivity(), permissions);
         this.maePermissionCallback = maePermissionCallback;
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M  && permissionsList.size() > 0){
-            if(!TextUtils.isEmpty(explain) && getActivity() != null && !getActivity().isFinishing()){
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mTargetSDKVersion < Build.VERSION_CODES.O) {
+            if (hasPermission(getContext(), permissions)) {
+                maePermissionCallback.onPermissionApplySuccess();
+            } else {
+                onPermissionFail(maePermissionCallback, permissionsList);
+            }
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && permissionsList.size() > 0) {
+            if (!TextUtils.isEmpty(explain) && getActivity() != null && !getActivity().isFinishing()) {
                 // 向用户解释权限
                 showExplainDialogAndRequestPermission(permissionsList, maePermissionCallback, explain);
             } else {
-                requestPermissions(permissionsList.toArray(new String[permissionsList.size()]), PERMISSION_REQUEST_CODE);
+                int size = permissionsList.size();
+                requestPermissions(permissionsList.toArray(new String[size]), PERMISSION_REQUEST_CODE);
             }
         } else {
-            maePermissionCallback.onPermissionApplySuccess();
+            if (hasPermission(getContext(), permissions)) {
+                maePermissionCallback.onPermissionApplySuccess();
+            } else {
+                onPermissionFail(maePermissionCallback, permissionsList);
+            }
         }
     }
 
+    private void onPermissionFail(MAEPermissionCallback maePermissionCallback, List<String> permissionsList) {
+        List<Boolean> list = new LinkedList<>();
+        for (int i = 0; i < permissionsList.size(); i++) {
+            list.add(false);
+        }
+        maePermissionCallback.onPermissionApplyFailure(permissionsList, list);
+    }
+
     private void showExplainDialogAndRequestPermission(final List<String> permissionsList, final MAEPermissionCallback maePermissionCallback, String explain){
+        if(getActivity() == null) {
+            return;
+        }
         AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(getActivity());
         dialogBuilder.setMessage(explain);
         dialogBuilder.setCancelable(false);
@@ -182,7 +257,8 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
-                    requestPermissions(permissionsList.toArray(new String[permissionsList.size()]), PERMISSION_REQUEST_CODE);
+                    int size = permissionsList.size();
+                    requestPermissions(permissionsList.toArray(new String[size]), PERMISSION_REQUEST_CODE);
                 } else {
                     maePermissionCallback.onPermissionApplySuccess();
                 }
@@ -201,10 +277,10 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
             if (result == PackageManager.PERMISSION_DENIED) return false;
 
             String op = AppOpsManagerCompat.permissionToOp(permission);
-            if (TextUtils.isEmpty(op)) continue;
-            result = AppOpsManagerCompat.noteProxyOp(context, op, context.getPackageName());
-            if (result != AppOpsManagerCompat.MODE_ALLOWED) return false;
-
+            if (op != null) {
+                result = AppOpsManagerCompat.noteProxyOp(context, op, context.getPackageName());
+                if (result != AppOpsManagerCompat.MODE_ALLOWED) return false;
+            }
         }
         return true;
     }
@@ -214,7 +290,7 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        if(requestCode != PERMISSION_REQUEST_CODE){
+        if(requestCode != PERMISSION_REQUEST_CODE || getContext() == null){
             return ;
         }
 
@@ -268,8 +344,19 @@ public class MAEMonitorFragment extends Fragment implements MAEPermissionRequest
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (mInstallApkUtils != null) {
+            mInstallApkUtils.onActivityResult(getActivity(), requestCode, resultCode, data);
+        }
         if (resultListener != null){
             resultListener.onActivityResult(requestCode, resultCode, data);
         }
+    }
+
+    @Override
+    public void installApkFile(File file) {
+        if (mInstallApkUtils == null) {
+            mInstallApkUtils = new MaeInstallApkUtils(file);
+        }
+        mInstallApkUtils.installApk(getActivity());
     }
 }

@@ -1,2 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.yu.bundles.monitorfragment" />
+    package="com.yu.bundles.monitorfragment" >
+
+    <application>
+        <provider
+            android:name=".MaeFileProvider"
+            android:authorities="${applicationId}.mae.yu.monitor.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/mae_file_provider_paths" />
+        </provider>
+    </application>
+
+</manifest>
